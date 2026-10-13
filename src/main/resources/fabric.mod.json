@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "challengetimer",
+	"version": "${version}",
+	"name": "Challenge Timer",
+	"description": "Ein Timer in der Actionbar – vorwärts als Stoppuhr oder rückwärts als Countdown. Steuerung über /timer.",
+	"authors": ["xImJxstinn"],
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["de.ximjxstinn.challengetimer.ChallengeTimer"]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.0",
+		"minecraft": ">=26.1 <26.4",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
