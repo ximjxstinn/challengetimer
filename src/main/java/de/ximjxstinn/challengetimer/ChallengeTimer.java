@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.ChatFormatting;
@@ -18,6 +19,7 @@ import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,6 +53,15 @@ public class ChallengeTimer implements ModInitializer {
 		});
 
 		ServerTickEvents.END_SERVER_TICK.register(ChallengeTimer::onTick);
+
+		// Nach einem Tod (alive == false) beim Respawn in den Zuschauermodus setzen.
+		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+			if (!alive && state.spectatorOnDeath()) {
+				newPlayer.setGameMode(GameType.SPECTATOR);
+				newPlayer.sendSystemMessage(prefix().append(Component.literal(
+						"Du bist gestorben und jetzt im Zuschauermodus.").withStyle(ChatFormatting.YELLOW)));
+			}
+		});
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> register(dispatcher));
 
@@ -99,8 +110,13 @@ public class ChallengeTimer implements ModInitializer {
 			player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 60, 20));
 			player.connection.send(new ClientboundSetTitleTextPacket(title));
 			player.connection.send(new ClientboundSetSubtitleTextPacket(subtitle));
+			if (state.spectatorOnEnd()) {
+				player.setGameMode(GameType.SPECTATOR);
+			}
 		}
-		broadcast(server, "Der Countdown ist abgelaufen.");
+		broadcast(server, state.spectatorOnEnd()
+				? "Der Countdown ist abgelaufen – alle Spieler sind jetzt im Zuschauermodus."
+				: "Der Countdown ist abgelaufen.");
 		save();
 	}
 
@@ -122,7 +138,39 @@ public class ChallengeTimer implements ModInitializer {
 				.then(Commands.literal("anzeige")
 						.then(Commands.literal("an").executes(ctx -> visibility(ctx, true)))
 						.then(Commands.literal("aus").executes(ctx -> visibility(ctx, false))))
+				.then(Commands.literal("spectator")
+						.executes(ChallengeTimer::spectatorStatus)
+						.then(Commands.literal("ende")
+								.then(Commands.literal("an").executes(ctx -> spectatorEnd(ctx, true)))
+								.then(Commands.literal("aus").executes(ctx -> spectatorEnd(ctx, false))))
+						.then(Commands.literal("tod")
+								.then(Commands.literal("an").executes(ctx -> spectatorDeath(ctx, true)))
+								.then(Commands.literal("aus").executes(ctx -> spectatorDeath(ctx, false)))))
 				.then(Commands.literal("hilfe").executes(ChallengeTimer::help)));
+	}
+
+	private static String onOff(boolean value) {
+		return value ? "an" : "aus";
+	}
+
+	private static int spectatorStatus(CommandContext<CommandSourceStack> ctx) {
+		reply(ctx, "Zuschauermodus bei Countdown-Ende: " + onOff(state.spectatorOnEnd())
+				+ " | bei Tod: " + onOff(state.spectatorOnDeath()));
+		return 1;
+	}
+
+	private static int spectatorEnd(CommandContext<CommandSourceStack> ctx, boolean value) {
+		state.setSpectatorOnEnd(value);
+		save();
+		broadcast(ctx.getSource().getServer(), "Zuschauermodus bei Countdown-Ende: " + onOff(value));
+		return 1;
+	}
+
+	private static int spectatorDeath(CommandContext<CommandSourceStack> ctx, boolean value) {
+		state.setSpectatorOnDeath(value);
+		save();
+		broadcast(ctx.getSource().getServer(), "Zuschauermodus bei Tod: " + onOff(value));
+		return 1;
 	}
 
 	private static int status(CommandContext<CommandSourceStack> ctx) {
@@ -198,7 +246,10 @@ public class ChallengeTimer implements ModInitializer {
 				"/timer reset – zurücksetzen",
 				"/timer set <zeit> – Zeit setzen, z. B. 1h30m, 45s, 1:30:00",
 				"/timer modus stoppuhr|countdown – hoch- oder runterzählen",
-				"/timer anzeige an|aus – Actionbar ein-/ausblenden"));
+				"/timer anzeige an|aus – Actionbar ein-/ausblenden",
+				"/timer spectator – aktuelle Zuschauer-Einstellungen",
+				"/timer spectator ende an|aus – Zuschauermodus, wenn der Countdown abläuft",
+				"/timer spectator tod an|aus – Zuschauermodus nach dem Tod"));
 		return 1;
 	}
 

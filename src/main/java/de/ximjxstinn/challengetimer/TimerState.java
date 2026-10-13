@@ -22,6 +22,13 @@ public final class TimerState {
 	private boolean running = false;
 	private boolean countdown = false;
 	private boolean visible = true;
+	private boolean spectatorOnEnd = false;
+	private boolean spectatorOnDeath = false;
+
+	public boolean spectatorOnEnd() { return spectatorOnEnd; }
+	public void setSpectatorOnEnd(boolean value) { spectatorOnEnd = value; }
+	public boolean spectatorOnDeath() { return spectatorOnDeath; }
+	public void setSpectatorOnDeath(boolean value) { spectatorOnDeath = value; }
 
 	/** @return true, wenn ein Countdown in diesem Tick abgelaufen ist. */
 	public boolean tick() {
@@ -128,6 +135,8 @@ public final class TimerState {
 		p.setProperty("countdownStart", Long.toString(countdownStartMs));
 		p.setProperty("countdown", Boolean.toString(countdown));
 		p.setProperty("visible", Boolean.toString(visible));
+		p.setProperty("spectatorOnEnd", Boolean.toString(spectatorOnEnd));
+		p.setProperty("spectatorOnDeath", Boolean.toString(spectatorOnDeath));
 		Files.createDirectories(file.getParent());
 		try (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
 			p.store(w, "Challenge Timer");
@@ -144,6 +153,8 @@ public final class TimerState {
 			state.countdownStartMs = Long.parseLong(p.getProperty("countdownStart", "0"));
 			state.countdown = Boolean.parseBoolean(p.getProperty("countdown", "false"));
 			state.visible = Boolean.parseBoolean(p.getProperty("visible", "true"));
+			state.spectatorOnEnd = Boolean.parseBoolean(p.getProperty("spectatorOnEnd", "false"));
+			state.spectatorOnDeath = Boolean.parseBoolean(p.getProperty("spectatorOnDeath", "false"));
 		} catch (IOException | NumberFormatException e) {
 			ChallengeTimer.LOGGER.warn("Timer-Datei konnte nicht gelesen werden, starte bei 0", e);
 		}
